@@ -6,12 +6,11 @@ QPKG_NAME="`/sbin/getcfg QKVM Name -d QKVM -f /etc/config/qpkg.conf`"
 MAIN_LINUX_CONFIG="/etc/config/uLinux.conf"
 DEFAULT_GW=$(/sbin/getcfg Network "Default GW Device" -f $MAIN_LINUX_CONFIG)
 USERGROUP="admin:administrators"
-/bin/ln -sf /KVM/Qcmd /bin/virsh
 
 #/sbin/log_tool -t2 -uSystem -p127.0.0.1 -mlocalhost -a "KVM_QNAP_ENABLED=`/sbin/getcfg $QPKG_NAME Enable -u -d FALSE -f /etc/config/qpkg.conf` $0 $1"
 if [ `/sbin/getcfg $QPKG_NAME Enable -u -d FALSE -f /etc/config/qpkg.conf` = UNKNOWN ]; then
         /sbin/setcfg $QPKG_NAME Enable TRUE -f /etc/config/qpkg.conf
-#	/sbin/log_tool -t2 -uSystem -p127.0.0.1 -mlocalhost -a "$QPKG_NAME ENABLED!"	
+#	/sbin/log_tool -t2 -uSystem -p127.0.0.1 -mlocalhost -a "$QPKG_NAME ENABLED!"
 elif [ `/sbin/getcfg $QPKG_NAME Enable -u -d FALSE -f /etc/config/qpkg.conf` != TRUE ]; then
         echo "$QPKG_NAME is disabled."
 #	/sbin/log_tool -t2 -uSystem -p127.0.0.1 -mlocalhost -a "$QPKG_NAME DISABLED!"
@@ -39,7 +38,7 @@ wait_prev_process()
 	    TIMEOUT_SEC=`getcfg QKVM "Timeout" -f /etc/config/qpkg.conf | cut -d ',' -f2`
 	    [ -z $TIMEOUT_SEC ] && TIMEOUT_SEC=0
 	    echo "Wait previous kvm_qnap.sh (up to $TIMEOUT_SEC seconds)"
-	    while [ "$cnt" -lt "$TIMEOUT_SEC" ] 
+	    while [ "$cnt" -lt "$TIMEOUT_SEC" ]
 	    do
 	        run_pid=$(cat /tmp/kvm_sh.pid)
 	        run_ps=$(/bin/ps | grep $run_pid | grep -v grep)
@@ -77,7 +76,7 @@ find_base(){
         		[ -d $datadirtest/Public ] && QPKG_BASE="/${publicdirp1}/${publicdirp2}"
 		done
 	fi
-	
+
 	if [ -z $QPKG_BASE ] ; then
 		echo "The Public share not found."
 		_exit 1
@@ -90,7 +89,7 @@ insert_modules()
 {
         ${QPKG_DIR}/modules/Insmod_ko.sh
         /bin/chown ${USERGROUP} /dev/kvm
-        
+
         checkkvm=`/sbin/lsmod | grep kvm | wc -l`
         if [ $checkkvm -eq "1" ]; then
                 /sbin/log_tool -t2 -uSystem -p127.0.0.1 -mlocalhost -a "[Virtualization Station] Please enable VT function in BIOS."
@@ -119,10 +118,6 @@ else
     QKVM_CONFIG_PATH="$QPKG_HIDDEN_DIR"
 fi
 
-check_inf_bridge()
-{
-	/KVM/opt/htdocs/webvirtmgr/network/utility init_bridge_setting
-}
 
 source "$QPKG_DIR/kvm_qnap.conf"
 source "$QPKG_DIR/vlan.sh"
@@ -145,7 +140,7 @@ relink_files()
 	# webvirtmgr.db -> $QPKG_HIDDEN_DIR/.db/webvirtmgr.db
 	#
 	# Add parameter "n" to prevent the loop issue while creating symbolic of folder.
-	# For example: 
+	# For example:
 	# [/KVM/opt/var/lib/libvirt/qemu/snapshot] # ls -al snapshot
 	# lrwxrwxrwx    1 admin    administ        47 Jan 16 17:32 snapshot -> /share/CACHEDEV1_DATA/.qpkg/.QKVM/.var/snapshot/
 	/bin/ln -sfn $QPKG_HIDDEN_DIR/.XML/qemu /KVM/opt/etc/libvirt/qemu
@@ -180,12 +175,12 @@ case "$1" in
 	start)
 	    # Starting KVM_QNAP...
 	    version1=$(/sbin/getcfg System "Version" -f /etc/default_config/uLinux.conf | sed 's/\.//g')
-	    if [ $version1 -ne '420' ]; then
+	    if [ $version1 -ne '421' ]  && [ $version1 -ne '420' ]; then
 	    	/bin/cp /KVM/opt/cgi-bin/qvsRedirectLib64.cgi /home/httpd/cgi-bin/qvsRedirect.cgi
 	    	/bin/echo "Start process terminated."
 	    	exit 1
 	    fi
-	    
+
 
 	    ### For symbolic link file and folders only ###
 	    relink_files
@@ -196,7 +191,7 @@ case "$1" in
 	    if [ -f /tmp/kvmupgrade.log ]; then
 		echo "Upgrade"
 		#/bin/rm -rf /tmp/kvmupgrade.log
-	    else 
+	    else
 	        if [ "$UPNP_ENABLED" == "TRUE" ] || [ "$UPNP_ENABLED" == "True" ]; then
 		    /KVM/upnp.sh scan &
 		fi
@@ -204,7 +199,7 @@ case "$1" in
 
 	    if [ "$ENABLED" != "TRUE" ]; then
 	        echo "$QPKG_NAME is disabled."
-	        exit 1	
+	        exit 1
 	    else
 	        echo "$QPKG_NAME is enabled, enable KVM Web UI."
 
@@ -214,25 +209,26 @@ case "$1" in
 	        if [ ! -c /dev/kvm ]; then
 	            insert_modules
 	        fi
-	        check_inf_bridge
-                start_vlan
-                start_vlanbridge
+			
 	        #xrdp_ena="`/sbin/getcfg "xrdp" enable -f ${QKVM_CONFIG_PATH}/config/config.conf`"
 	        #[ "$xrdp_ena" == "TRUE" ] && /KVM/XRDP/xrdp.sh start &
 
+	        /KVM/opt/htdocs/webvirtmgr/network/utility start_network
+		start_vlan
+		start_vlanbridge
 	        start_daemon_task
 	        start_kvm_qnap
 
 	        /sbin/setcfg QKVM Qkvm_Status "STARTED" -f /etc/config/qpkg.conf
-	    fi	
+	    fi
 	    /bin/chmod 755 /KVM/opt/htdocs/webvirtmgr/lib/LibvirtVga.py*
 	    RETVAL=$?
 	;;
-	
-	stop)  	
+
+	stop)
 	    #Stopping KVM_QNAP...
 
-	    wait_prev_process	    
+	    wait_prev_process
 	    /sbin/setcfg QKVM Qkvm_Status "STOPPING" -f /etc/config/qpkg.conf
 
 	    stop_daemon_task
@@ -240,11 +236,13 @@ case "$1" in
 	        /KVM/XRDP/xrdp.sh stop
 	    fi
 	    stop_kvm_qnap
-            stop_vlanbridge
-            stop_vlan
+	    stop_vlanbridge
+	    stop_vlan
+	    /KVM/opt/htdocs/webvirtmgr/network/utility stop_network
+
 	    [ -c /dev/kvm ] && remove_modules
 	    [ -d "${QKVM_CONFIG_PATH}/tmp" ] && rm -rf "${QKVM_CONFIG_PATH}/tmp"
-	    /bin/rm /bin/virsh
+
 	    /sbin/setcfg QKVM Qkvm_Status "STOPPED" -f /etc/config/qpkg.conf
 	    RETVAL=$?
 	;;
@@ -255,14 +253,14 @@ case "$1" in
 
 	    #xrdp_ena="`/sbin/getcfg "xrdp" enable -f ${QKVM_CONFIG_PATH}/config/config.conf`"
 	    #if [ "$xrdp_ena" == "TRUE" ]; then
-	    #    /KVM/XRDP/xrdp.sh restart 
+	    #    /KVM/XRDP/xrdp.sh restart
 	    #else
 	    #    /KVM/XRDP/xrdp.sh stop
 	    #fi
 
-	    RETVAL=$?	
+	    RETVAL=$?
 	;;
-	
+
 	*)
 	    echo "Usage: $0 {start|stop|restart}"
 	    exit 1
